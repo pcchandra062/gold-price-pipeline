@@ -1,6 +1,17 @@
 {
-    "asset": "Gold Spot (XAU/USD)",
-    "price": 4068.0,
-    "currency": "USD",
-    "fetched_at_utc": "2026-06-26 10:43:53"
+  "market_source": "gold-price.bd",
+  "url": "https://gold-price.bd/",
+  "page_title": "Latest Gold Price in Bangladesh",
+  "fetched_at_utc": "2026-06-26 10:59:50",
+  "rates": {
+    "Traditional Gold": {
+      "bdt_per_gram": 12815.0,
+      "bdt_per_vori": 149474.16,
+      "formatted_gram": "12,815/-",
+      "formatted_vori": "1,49,474/-"
+    }
+  },
+  "raw_dump": [
+    "সনাতন পদ্ধতি ৳ ১২,৮১৫ ৳ ১,৪৯,৪৭৪ ৳ ৯,৩৪২ ৳ ১,৫৫৭"
+  ]
 }
