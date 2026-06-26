@@ -3,14 +3,19 @@ import html
 import json
 import os
 from bs4 import BeautifulSoup
-import cloudscraper
-import requests
+from curl_cffi import requests as cffi_requests
+import requests as std_requests
 
 BAJUS_URL = "https://www.bajus.org/gold-price/"
 
+# If direct cloud access is blocked, Python will bounce through these public proxies
+PROXY_FALLBACKS = [
+    f"https://api.allorigins.win/raw?url={BAJUS_URL}",
+    f"https://api.codetabs.com/v1/proxy?quest={BAJUS_URL}",
+]
+
 
 def format_inr_taka(val):
-  """Formats numbers into standard South Asian Lakh/Crore notation (e.g. 1,38,288/-)"""
   try:
     num = int(round(float(val)))
     s = str(num)
@@ -29,16 +34,42 @@ def format_inr_taka(val):
     return str(val)
 
 
-def fetch_bajus_tariff():
-  # Create a scraper session that mimics standard browser engine headers & ciphers
-  scraper = cloudscraper.create_scraper(
-      browser={"browser": "chrome", "platform": "windows", "mobile": False}
+def get_page_html():
+  # TIER 1: Low-level TLS Impersonation (Tricks Cloudflare browser checks)
+  try:
+    print("🌐 Tier 1: Attempting direct Chrome TLS handshake...")
+    res = cffi_requests.get(BAJUS_URL, impersonate="chrome120", timeout=15)
+    if res.status_code == 200:
+      print("✅ Tier 1 Successful: Connected directly to BAJUS!")
+      return res.text
+    print(f"⚠️ Tier 1 Rejected (HTTP {res.status_code})")
+  except Exception as e:
+    print(f"⚠️ Tier 1 Failed: {e}")
+
+  # TIER 2: Open Proxy Routing (Tricks Datacenter IP blocks)
+  print("🔄 Tier 2: Engaging failover proxy network...")
+  for proxy in PROXY_FALLBACKS:
+    try:
+      proxy_name = proxy.split("/")[2]
+      print(f"📡 Bouncing through {proxy_name}...")
+      res = std_requests.get(
+          proxy, headers={"User-Agent": "Mozilla/5.0"}, timeout=20
+      )
+      if res.status_code == 200 and "bajus" in res.text.lower():
+        print(f"✅ Tier 2 Successful: HTML retrieved via {proxy_name}!")
+        return res.text
+    except Exception as proxy_err:
+      print(f"❌ {proxy_name} failed: {proxy_err}")
+
+  raise Exception(
+      "CRITICAL FAILURE: BAJUS blocked both direct TLS spoofing and all backup"
+      " proxy tunnels."
   )
 
-  res = scraper.get(BAJUS_URL, timeout=20)
-  res.raise_for_status()
 
-  soup = BeautifulSoup(res.text, "html.parser")
+def fetch_bajus_tariff():
+  raw_html = get_page_html()
+  soup = BeautifulSoup(raw_html, "html.parser")
 
   parsed_rates = {}
   raw_table_dump = []
@@ -55,7 +86,6 @@ def fetch_bajus_tariff():
         for k in ["22 KARAT", "21 KARAT", "18 KARAT", "TRADITIONAL"]
     ):
       raw_table_dump.append(cells)
-
       category = cells[0]
       price_str = cells[-1]
 
@@ -66,8 +96,6 @@ def fetch_bajus_tariff():
       if clean_digits:
         try:
           val = float(clean_digits)
-
-          # BAJUS publishes BDT/Gram. 1 Vori = 11.664 Grams
           is_per_gram = "GRAM" in price_str.upper() or val < 50000
 
           if is_per_gram:
@@ -126,11 +154,10 @@ def broadcast_telegram(data):
       )
 
   msg += f"⏱️ <i>Checked: {data['fetched_at_utc']} UTC</i>"
-
   payload = {"chat_id": chat_id, "text": msg, "parse_mode": "HTML"}
 
   try:
-    res = requests.post(url, json=payload, timeout=10)
+    res = std_requests.post(url, json=payload, timeout=10)
     if res.status_code == 200:
       print("🚀 Telegram alert dispatched successfully!")
     else:
