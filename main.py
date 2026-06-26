@@ -33,9 +33,17 @@ def format_inr_taka(val):
     return str(val)
 
 
+def bn_to_en(text):
+  """Translates Bengali numerals (০-৯) to standard English digits (0-9)"""
+  bengali_digits = "০১২৩৪৫৬৭৮৯"
+  english_digits = "0123456789"
+  trans_table = str.maketrans(bengali_digits, english_digits)
+  return text.translate(trans_table)
+
+
 def get_page_html():
   try:
-    print(f"🌐 Attempting direct connection to {TARGET_URL}...")
+    print("🌐 Attempting direct connection...")
     res = cffi_requests.get(TARGET_URL, impersonate="chrome120", timeout=15)
     if res.status_code == 200:
       return res.text
@@ -53,7 +61,7 @@ def get_page_html():
     except Exception:
       continue
 
-  raise Exception(f"CRITICAL FAILURE: Could not retrieve HTML from {TARGET_URL}")
+  raise Exception("CRITICAL FAILURE: Could not retrieve target HTML")
 
 
 def fetch_gold_price_bd():
@@ -63,27 +71,66 @@ def fetch_gold_price_bd():
   parsed_rates = {}
   raw_dump = []
 
-  # Search strategy 1: Scan WordPress table blocks
-  for tr in soup.find_all("tr"):
-    row_text = tr.get_text(separator=" ", strip=True)
-    if any(k in row_text.upper() for k in ["22", "21", "18", "TRADITIONAL", "সনাতন"]):
-      raw_dump.append(row_text)
-      
-      # Find all continuous digit strings that look like prices (> 10,000)
-      numbers = re.findall(r"\b\d{1,3}(?:,\d{2,3})+\b|\b\d{5,7}\b", row_text)
-      clean_nums = [float(n.replace(",", "")) for n in numbers if float(n.replace(",", "")) > 10000]
+  # Scan all table rows, list items, and dynamic tariff containers
+  for element in soup.find_all(["tr", "li", "div"]):
+    row_text = element.get_text(separator=" ", strip=True)
+
+    # Convert "২২ ক্যারেট" -> "22 ক্যারেট"
+    norm_text = bn_to_en(row_text).upper()
+
+    if any(
+        k in norm_text
+        for k in [
+            "22 K",
+            "22K",
+            "22 CARAT",
+            "21 K",
+            "21K",
+            "21 CARAT",
+            "18 K",
+            "18K",
+            "18 CARAT",
+            "TRADITIONAL",
+            "সনাতন",
+        ]
+    ):
+
+      # Skip massive wrapper divs to prevent duplicate captures
+      if len(norm_text) > 120:
+        continue
+
+      # Capture standard numeric price strings (> 8,000 BDT)
+      numbers = re.findall(
+          r"\b\d{1,3}(?:,\d{2,3})+\b|\b\d{4,7}(?:\.\d+)?\b", norm_text
+      )
+      clean_nums = [
+          float(n.replace(",", ""))
+          for n in numbers
+          if float(n.replace(",", "")) > 8000
+      ]
 
       if clean_nums:
-        val = clean_nums[0] # Grab primary price
-        
-        # Determine karat category
-        cat = "Unknown Gold"
-        if "22" in row_text: cat = "22 Karat Gold"
-        elif "21" in row_text: cat = "21 Karat Gold"
-        elif "18" in row_text: cat = "18 Karat Gold"
-        elif "TRADITIONAL" in row_text.upper() or "সনাতন" in row_text: cat = "Traditional Gold"
+        val = clean_nums[0]
 
-        # Determine if price is per Vori (~1,30,000+) or per Gram (~12,000+)
+        # Apply exact requested tier labeling
+        if "22" in norm_text:
+          cat = "22KDM Gold"
+        elif "21" in norm_text:
+          cat = "21KDM Gold"
+        elif "18" in norm_text:
+          cat = "18KDM Gold"
+        elif "TRADITIONAL" in norm_text or "সনাতন" in norm_text:
+          cat = "Traditional Gold"
+        else:
+          continue
+
+        # Keep primary tariff table capture; ignore footer repeats
+        if cat in parsed_rates:
+          continue
+
+        raw_dump.append(norm_text)
+
+        # Auto-calculate Bhori vs Gram ratios
         if val > 50000:
           vori_rate = val
           gram_rate = val / 11.664
@@ -98,13 +145,15 @@ def fetch_gold_price_bd():
             "formatted_vori": format_inr_taka(vori_rate),
         }
 
+  # Lock output order strictly from highest purity to traditional
+  order = ["22KDM Gold", "21KDM Gold", "18KDM Gold", "Traditional Gold"]
+  sorted_rates = {k: parsed_rates[k] for k in order if k in parsed_rates}
+
   return {
-      "market_source": "gold-price.bd",
-      "url": TARGET_URL,
-      "page_title": "Latest Gold Price in Bangladesh",
+      "market_source": "Local Bullion Tariff",
       "fetched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-      "rates": parsed_rates,
-      "raw_dump": raw_dump
+      "rates": sorted_rates,
+      "raw_dump": raw_dump,
   }
 
 
@@ -119,10 +168,11 @@ def broadcast_telegram(data):
   url = f"https://api.telegram.org/bot{token}/sendMessage"
   rates = data.get("rates", {})
 
-  msg = f"🚨 <b>Gold Market Update ({data['market_source']})</b>\n\n"
+  # Clean notification header without website URLs
+  msg = "🚨 <b>Live Gold Market Rates</b>\n\n"
 
   if not rates:
-    msg += "⚠️ <i>Parser alert: The website layout changed or data loaded dynamically. Check raw API dump.</i>\n\n"
+    msg += "⚠️ <i>Parser alert: Data layout unreadable. Check GitHub logs.</i>\n\n"
   else:
     for category, metrics in rates.items():
       msg += (
@@ -136,7 +186,7 @@ def broadcast_telegram(data):
 
   try:
     std_requests.post(url, json=payload, timeout=10)
-    print("🚀 Telegram alert dispatched!")
+    print("🚀 Telegram alert dispatched successfully!")
   except Exception as e:
     print(f"Telegram Network Error: {e}")
 
