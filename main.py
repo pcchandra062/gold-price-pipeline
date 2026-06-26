@@ -3,6 +3,7 @@ import html
 import json
 import os
 from bs4 import BeautifulSoup
+import cloudscraper
 import requests
 
 BAJUS_URL = "https://www.bajus.org/gold-price/"
@@ -29,18 +30,12 @@ def format_inr_taka(val):
 
 
 def fetch_bajus_tariff():
-  headers = {
-      "User-Agent": (
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-          " (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-      ),
-      "Accept": (
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-      ),
-      "Accept-Language": "en-US,en;q=0.5",
-  }
+  # Create a scraper session that mimics standard browser engine headers & ciphers
+  scraper = cloudscraper.create_scraper(
+      browser={"browser": "chrome", "platform": "windows", "mobile": False}
+  )
 
-  res = requests.get(BAJUS_URL, headers=headers, timeout=15)
+  res = scraper.get(BAJUS_URL, timeout=20)
   res.raise_for_status()
 
   soup = BeautifulSoup(res.text, "html.parser")
@@ -48,7 +43,6 @@ def fetch_bajus_tariff():
   parsed_rates = {}
   raw_table_dump = []
 
-  # Scan all table rows across the BAJUS tariff page
   for tr in soup.find_all("tr"):
     cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
     if len(cells) < 2:
@@ -56,7 +50,6 @@ def fetch_bajus_tariff():
 
     row_text = " ".join(cells).upper()
 
-    # Catch standard jewelry karat tiers
     if any(
         k in row_text
         for k in ["22 KARAT", "21 KARAT", "18 KARAT", "TRADITIONAL"]
@@ -66,7 +59,6 @@ def fetch_bajus_tariff():
       category = cells[0]
       price_str = cells[-1]
 
-      # Strip non-numeric characters (keep decimals)
       clean_digits = "".join(
           c for c in price_str if c.isdigit() or c == "."
       ).strip(".")
@@ -95,7 +87,6 @@ def fetch_bajus_tariff():
         except ValueError:
           continue
 
-  # Extract page notice header
   header_text = "BAJUS Official Tariff"
   for h in soup.find_all(["h1", "h2", "h3", "h4"]):
     txt = h.get_text(strip=True)
@@ -127,7 +118,6 @@ def broadcast_telegram(data):
   msg = f"🚨 <b>{html.escape(data['page_title'])}</b>\n\n"
 
   for category, metrics in rates.items():
-    # Filter to broadcast Gold tiers
     if "GOLD" in category.upper() or "TRADITIONAL" in category.upper():
       msg += (
           f"🥇 <b>{html.escape(category)}</b>\n"
@@ -137,7 +127,6 @@ def broadcast_telegram(data):
 
   msg += f"⏱️ <i>Checked: {data['fetched_at_utc']} UTC</i>"
 
-  # HTML parse mode is 100x safer against weird website text syntax than Markdown
   payload = {"chat_id": chat_id, "text": msg, "parse_mode": "HTML"}
 
   try:
