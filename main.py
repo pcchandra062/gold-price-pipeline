@@ -71,81 +71,59 @@ def fetch_gold_price_bd():
   parsed_rates = {}
   raw_dump = []
 
-  # Scan all table rows, list items, and dynamic tariff containers
-  for element in soup.find_all(["tr", "li", "div"]):
+  # Scan standard table rows, list items, paragraphs, and div boxes
+  for element in soup.find_all(["tr", "li", "p", "div"]):
     row_text = element.get_text(separator=" ", strip=True)
+    norm_text = bn_to_en(row_text)
 
-    # Convert "২২ ক্যারেট" -> "22 ক্যারেট"
-    norm_text = bn_to_en(row_text).upper()
+    # Skip massive multi-line container wrappers (> 150 chars) or empty blocks
+    if len(norm_text) > 150 or len(norm_text) < 5:
+      continue
 
-    if any(
-        k in norm_text
-        for k in [
-            "22 K",
-            "22K",
-            "22 CARAT",
-            "21 K",
-            "21K",
-            "21 CARAT",
-            "18 K",
-            "18K",
-            "18 CARAT",
-            "TRADITIONAL",
-            "সনাতন",
-        ]
-    ):
+    cat = None
+    if re.search(r"\b22\b|২২", norm_text):
+      cat = "22KDM Gold"
+    elif re.search(r"\b21\b|২১", norm_text):
+      cat = "21KDM Gold"
+    elif re.search(r"\b18\b|১৮", norm_text):
+      cat = "18KDM Gold"
+    elif any(w in norm_text for w in ["সনাতন", "TRADITIONAL", "OLD GOLD"]):
+      cat = "Traditional Gold"
 
-      # Skip massive wrapper divs to prevent duplicate captures
-      if len(norm_text) > 120:
+    if not cat or cat in parsed_rates:
+      continue
+
+    # Extract price floats (> 10,000 BDT)
+    raw_nums = re.findall(r"[\d,\.]+", norm_text)
+    clean_vals = []
+    for rn in raw_nums:
+      clean_str = rn.strip(",.").replace(",", "")
+      try:
+        v = float(clean_str)
+        if v > 10000:  # Valid gold rates per vori/gram are always > 10,000 BDT
+          clean_vals.append(v)
+      except ValueError:
         continue
 
-      # Capture standard numeric price strings (> 8,000 BDT)
-      numbers = re.findall(
-          r"\b\d{1,3}(?:,\d{2,3})+\b|\b\d{4,7}(?:\.\d+)?\b", norm_text
-      )
-      clean_nums = [
-          float(n.replace(",", ""))
-          for n in numbers
-          if float(n.replace(",", "")) > 8000
-      ]
+    if clean_vals:
+      val = clean_vals[0]
+      raw_dump.append(norm_text)
 
-      if clean_nums:
-        val = clean_nums[0]
+      if val > 50000:
+        vori_rate = val
+        gram_rate = val / 11.664
+      else:
+        gram_rate = val
+        vori_rate = val * 11.664
 
-        # Apply exact requested tier labeling
-        if "22" in norm_text:
-          cat = "22KDM Gold"
-        elif "21" in norm_text:
-          cat = "21KDM Gold"
-        elif "18" in norm_text:
-          cat = "18KDM Gold"
-        elif "TRADITIONAL" in norm_text or "সনাতন" in norm_text:
-          cat = "Traditional Gold"
-        else:
-          continue
+      parsed_rates[cat] = {
+          "bdt_per_gram": round(gram_rate, 2),
+          "bdt_per_vori": round(vori_rate, 2),
+          "formatted_gram": format_inr_taka(gram_rate),
+          "formatted_vori": format_inr_taka(vori_rate),
+      }
 
-        # Keep primary tariff table capture; ignore footer repeats
-        if cat in parsed_rates:
-          continue
-
-        raw_dump.append(norm_text)
-
-        # Auto-calculate Bhori vs Gram ratios
-        if val > 50000:
-          vori_rate = val
-          gram_rate = val / 11.664
-        else:
-          gram_rate = val
-          vori_rate = val * 11.664
-
-        parsed_rates[cat] = {
-            "bdt_per_gram": round(gram_rate, 2),
-            "bdt_per_vori": round(vori_rate, 2),
-            "formatted_gram": format_inr_taka(gram_rate),
-            "formatted_vori": format_inr_taka(vori_rate),
-        }
-
-  # Lock output order strictly from highest purity to traditional
+  # Lock output order strictly from highest purity down to traditional
   order = ["22KDM Gold", "21KDM Gold", "18KDM Gold", "Traditional Gold"]
   sorted_rates = {k: parsed_rates[k] for k in order if k in parsed_rates}
 
@@ -168,7 +146,6 @@ def broadcast_telegram(data):
   url = f"https://api.telegram.org/bot{token}/sendMessage"
   rates = data.get("rates", {})
 
-  # Clean notification header without website URLs
   msg = "🚨 <b>Live Gold Market Rates</b>\n\n"
 
   if not rates:
