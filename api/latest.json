@@ -1,8 +1,6 @@
 {
-  "market_source": "gold-price.bd",
-  "url": "https://gold-price.bd/",
-  "page_title": "Latest Gold Price in Bangladesh",
-  "fetched_at_utc": "2026-06-26 10:59:50",
+  "market_source": "Local Bullion Tariff",
+  "fetched_at_utc": "2026-06-26 11:03:15",
   "rates": {
     "Traditional Gold": {
       "bdt_per_gram": 12815.0,
@@ -12,6 +10,6 @@
     }
   },
   "raw_dump": [
-    "সনাতন পদ্ধতি ৳ ১২,৮১৫ ৳ ১,৪৯,৪৭৪ ৳ ৯,৩৪২ ৳ ১,৫৫৭"
+    "সনাতন পদ্ধতি ৳ 12,815 ৳ 1,49,474 ৳ 9,342 ৳ 1,557"
   ]
 }
