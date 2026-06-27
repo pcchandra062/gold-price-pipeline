@@ -1,6 +1,41 @@
 {
-  "market_source": "Bajus Hub Live Tariff",
-  "fetched_at_utc": "2026-06-27 06:27:10",
-  "rates": {},
-  "raw_dump": []
+  "market_source": "GoldPric.CoM Live Data Stream",
+  "fetched_at_utc": "2026-06-27 06:40:40",
+  "rates": {
+    "22KDM Gold": {
+      "bdt_per_gram": 19595.0,
+      "bdt_per_vori": 228556.08,
+      "formatted_gram": "19,595/-",
+      "formatted_vori": "2,28,556/-",
+      "customer_buyback_gram": 16263.85,
+      "customer_buyback_vori": 189701.55
+    },
+    "21KDM Gold": {
+      "bdt_per_gram": 18715.0,
+      "bdt_per_vori": 218291.76,
+      "formatted_gram": "18,715/-",
+      "formatted_vori": "2,18,292/-",
+      "customer_buyback_gram": 15533.45,
+      "customer_buyback_vori": 181182.16
+    },
+    "18KDM Gold": {
+      "bdt_per_gram": 16070.0,
+      "bdt_per_vori": 187440.48,
+      "formatted_gram": "16,070/-",
+      "formatted_vori": "1,87,440/-",
+      "customer_buyback_gram": 13338.1,
+      "customer_buyback_vori": 155575.6
+    },
+    "Traditional Gold": {
+      "bdt_per_gram": 13130.0,
+      "bdt_per_vori": 153148.32,
+      "formatted_gram": "13,130/-",
+      "formatted_vori": "1,53,148/-",
+      "customer_buyback_gram": 10897.9,
+      "customer_buyback_vori": 127113.11
+    }
+  },
+  "raw_dump": [
+    "Stream captured successfully via automated failover."
+  ]
 }
