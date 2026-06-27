@@ -28,32 +28,64 @@ def format_inr_taka(val):
     return str(val)
 
 
-def fetch_goldpric_stream():
+def get_raw_js_stream():
   headers = {
       "User-Agent": (
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           " (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
       ),
-      "Referer": "https://goldpric.com/",  # Tells their CDN the request came from their homepage
+      "Referer": "https://goldpric.com/",
   }
 
-  res = requests.get(TARGET_JS_URL, headers=headers, timeout=15)
-  res.raise_for_status()
+  # TIER 1: Direct Stream Capture
+  try:
+    print("🌐 Tier 1: Attempting direct stream capture...")
+    res = requests.get(TARGET_JS_URL, headers=headers, timeout=10)
+    if res.status_code == 200 and "const p" in res.text:
+      print("✅ Tier 1 Successful: Direct data stream connected!")
+      return res.text
+  except Exception as e:
+    print(f"⚠️ Tier 1 Blocked ({type(e).__name__}). Pivot initiated.")
 
-  js_text = res.text
+  # TIER 2: Proxy Tunnel Routing (Bypasses Azure IP packet drops)
+  print("🔄 Tier 2: Engaging backup proxy failover tunnels...")
+  proxy_tunnels = [
+      f"https://api.allorigins.win/raw?url={TARGET_JS_URL}",
+      f"https://api.codetabs.com/v1/proxy?quest={TARGET_JS_URL}",
+  ]
 
-  # Slice out the pure JSON payload sitting between: const p = [ ... ];
+  for tunnel in proxy_tunnels:
+    proxy_name = tunnel.split("/")[2]
+    try:
+      print(f"📡 Tunneling via {proxy_name}...")
+      res = requests.get(
+          tunnel, headers={"User-Agent": "Mozilla/5.0"}, timeout=15
+      )
+      if res.status_code == 200 and "const p" in res.text:
+        print(f"✅ Tier 2 Successful: Stream captured via {proxy_name}!")
+        return res.text
+    except Exception as tunnel_err:
+      print(f"❌ {proxy_name} tunnel failed: {tunnel_err}")
+
+  raise Exception(
+      "CRITICAL FAILURE: Cloud firewall dropped both direct TCP handshakes and"
+      " proxy routing tunnels."
+  )
+
+
+def fetch_goldpric_stream():
+  js_text = get_raw_js_stream()
+
+  # Slice out the JSON array sitting inside: const p = [ ... ];
   match = re.search(r"const\s+p\s*=\s*(\[.*?\]);", js_text, re.DOTALL)
   if not match:
     raise Exception(
-        "Parser Error: Could not locate the 'const p' data array inside the JS"
-        " file."
+        "Parser Error: Could not locate the 'const p' array inside the stream"
+        " dump."
     )
 
-  raw_json_array = match.group(1)
-  data_list = json.loads(raw_json_array)
+  data_list = json.loads(match.group(1))
 
-  # Map the JS "key" identifiers directly to your Tkinter & Google Sheet layout architecture
   key_map = {
       "22k": "22KDM Gold",
       "21k": "21KDM Gold",
@@ -64,18 +96,14 @@ def fetch_goldpric_stream():
   parsed_rates = {}
 
   for item in data_list:
-    js_key = item.get("key")
-    target_name = key_map.get(js_key)
-
+    target_name = key_map.get(item.get("key"))
     if not target_name:
       continue
 
-    # Pull exact published market rates
     rates_node = item.get("unit_rate", {})
     gram_val = float(rates_node.get("gram", 0))
     vori_val = float(rates_node.get("bhori", 0))
 
-    # Pull official customer store buyback / exchange rates
     sell_node = item.get("unit_sell", {})
     buyback_gram = float(sell_node.get("gram", 0))
     buyback_vori = float(sell_node.get("bhori", 0))
@@ -89,7 +117,6 @@ def fetch_goldpric_stream():
         "customer_buyback_vori": round(buyback_vori, 2),
     }
 
-  # Lock output order strictly from 22K down to Traditional
   order = ["22KDM Gold", "21KDM Gold", "18KDM Gold", "Traditional Gold"]
   sorted_rates = {k: parsed_rates[k] for k in order if k in parsed_rates}
 
@@ -97,7 +124,7 @@ def fetch_goldpric_stream():
       "market_source": "GoldPric.CoM Live Data Stream",
       "fetched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
       "rates": sorted_rates,
-      "raw_dump": ["Stream captured successfully. Payload verified."],
+      "raw_dump": ["Stream captured successfully via automated failover."],
   }
 
 
