@@ -7,7 +7,9 @@ from bs4 import BeautifulSoup
 from curl_cffi import requests as cffi_requests
 import requests as std_requests
 
-TARGET_URL = "https://gold-price.bd/"
+TARGET_URL = "https://bajushub.com/"
+
+# Proxy failover network in case Microsoft Azure IP ranges get challenged
 PROXY_FALLBACKS = [
     f"https://api.allorigins.win/raw?url={TARGET_URL}",
     f"https://api.codetabs.com/v1/proxy?quest={TARGET_URL}",
@@ -15,6 +17,7 @@ PROXY_FALLBACKS = [
 
 
 def format_inr_taka(val):
+  """Formats numbers into standard South Asian Lakh/Crore notation (e.g. 2,23,074/-)"""
   try:
     num = int(round(float(val)))
     s = str(num)
@@ -43,41 +46,47 @@ def bn_to_en(text):
 
 def get_page_html():
   try:
-    print("🌐 Attempting direct connection...")
+    print(f"🌐 Attempting direct Chrome TLS handshake with {TARGET_URL}...")
     res = cffi_requests.get(TARGET_URL, impersonate="chrome120", timeout=15)
     if res.status_code == 200:
+      print("✅ Direct connection established!")
       return res.text
   except Exception as e:
-    print(f"⚠️ Direct connection failed: {e}")
+    print(f"⚠️ Direct connection deflected: {e}")
 
-  print("🔄 Engaging failover proxy network...")
+  print("🔄 Engaging backup proxy failover network...")
   for proxy in PROXY_FALLBACKS:
     try:
       res = std_requests.get(
           proxy, headers={"User-Agent": "Mozilla/5.0"}, timeout=20
       )
       if res.status_code == 200 and len(res.text) > 1000:
+        print("✅ Connected successfully via proxy tunnel!")
         return res.text
     except Exception:
       continue
 
-  raise Exception("CRITICAL FAILURE: Could not retrieve target HTML")
+  raise Exception(f"CRITICAL FAILURE: Could not retrieve HTML from {TARGET_URL}")
 
 
-def fetch_gold_price_bd():
+def fetch_bajus_hub():
   raw_html = get_page_html()
   soup = BeautifulSoup(raw_html, "html.parser")
 
   parsed_rates = {}
   raw_dump = []
 
-  # Scan standard table rows, list items, paragraphs, and div boxes
+  # Scan table rows, list elements, and content divs
   for element in soup.find_all(["tr", "li", "p", "div"]):
     row_text = element.get_text(separator=" ", strip=True)
     norm_text = bn_to_en(row_text)
 
-    # Skip massive multi-line container wrappers (> 150 chars) or empty blocks
+    # Skip oversized container blocks (> 150 chars) or tiny fragments
     if len(norm_text) > 150 or len(norm_text) < 5:
+      continue
+
+    # Explicitly filter out Silver (রুপা / রৌপ্য) rows
+    if any(s in norm_text for s in ["রৌপ্য", "রুপা", "SILVER"]):
       continue
 
     cat = None
@@ -87,20 +96,21 @@ def fetch_gold_price_bd():
       cat = "21KDM Gold"
     elif re.search(r"\b18\b|১৮", norm_text):
       cat = "18KDM Gold"
-    elif any(w in norm_text for w in ["সনাতন", "TRADITIONAL", "OLD GOLD"]):
+    elif any(w in norm_text for w in ["সনাতন", "TRADITIONAL", "OLD"]):
       cat = "Traditional Gold"
 
     if not cat or cat in parsed_rates:
       continue
 
-    # Extract price floats (> 10,000 BDT)
+    # Extract price float strings
     raw_nums = re.findall(r"[\d,\.]+", norm_text)
     clean_vals = []
     for rn in raw_nums:
       clean_str = rn.strip(",.").replace(",", "")
       try:
         v = float(clean_str)
-        if v > 10000:  # Valid gold rates per vori/gram are always > 10,000 BDT
+        # PRICE-FLOOR SHIELD: Eliminates accidental Silver captures (~2,700 BDT)
+        if v > 10000:  
           clean_vals.append(v)
       except ValueError:
         continue
@@ -109,6 +119,7 @@ def fetch_gold_price_bd():
       val = clean_vals[0]
       raw_dump.append(norm_text)
 
+      # Bajus Hub publishes Vori prices (~2,23,000+). Auto-calculate Grams.
       if val > 50000:
         vori_rate = val
         gram_rate = val / 11.664
@@ -123,12 +134,12 @@ def fetch_gold_price_bd():
           "formatted_vori": format_inr_taka(vori_rate),
       }
 
-  # Lock output order strictly from highest purity down to traditional
+  # Lock output order strictly from 22K down to Traditional
   order = ["22KDM Gold", "21KDM Gold", "18KDM Gold", "Traditional Gold"]
   sorted_rates = {k: parsed_rates[k] for k in order if k in parsed_rates}
 
   return {
-      "market_source": "Local Bullion Tariff",
+      "market_source": "Bajus Hub Live Tariff",
       "fetched_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
       "rates": sorted_rates,
       "raw_dump": raw_dump,
@@ -169,7 +180,7 @@ def broadcast_telegram(data):
 
 
 if __name__ == "__main__":
-  payload = fetch_gold_price_bd()
+  payload = fetch_bajus_hub()
 
   os.makedirs("api", exist_ok=True)
   with open("api/latest.json", "w", encoding="utf-8") as f:
