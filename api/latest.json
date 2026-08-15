@@ -1,38 +1,38 @@
 {
   "market_source": "GoldPric.CoM Live Data Stream",
-  "fetched_at_utc": "2026-08-15 04:37:25",
+  "fetched_at_utc": "2026-08-15 08:36:10",
   "rates": {
     "22KDM Gold": {
-      "bdt_per_gram": 20115.0,
-      "bdt_per_vori": 234621.36,
-      "formatted_gram": "20,115/-",
-      "formatted_vori": "2,34,621/-",
-      "customer_buyback_gram": 16695.45,
-      "customer_buyback_vori": 194735.73
+      "bdt_per_gram": 20300.0,
+      "bdt_per_vori": 236779.2,
+      "formatted_gram": "20,300/-",
+      "formatted_vori": "2,36,779/-",
+      "customer_buyback_gram": 16849.0,
+      "customer_buyback_vori": 196526.74
     },
     "21KDM Gold": {
-      "bdt_per_gram": 19210.0,
-      "bdt_per_vori": 224065.44,
-      "formatted_gram": "19,210/-",
-      "formatted_vori": "2,24,065/-",
-      "customer_buyback_gram": 15944.3,
-      "customer_buyback_vori": 185974.32
+      "bdt_per_gram": 19390.0,
+      "bdt_per_vori": 226164.96,
+      "formatted_gram": "19,390/-",
+      "formatted_vori": "2,26,165/-",
+      "customer_buyback_gram": 16093.7,
+      "customer_buyback_vori": 187716.92
     },
     "18KDM Gold": {
-      "bdt_per_gram": 16495.0,
-      "bdt_per_vori": 192397.68,
-      "formatted_gram": "16,495/-",
-      "formatted_vori": "1,92,398/-",
-      "customer_buyback_gram": 13690.85,
-      "customer_buyback_vori": 159690.07
+      "bdt_per_gram": 16650.0,
+      "bdt_per_vori": 194205.6,
+      "formatted_gram": "16,650/-",
+      "formatted_vori": "1,94,206/-",
+      "customer_buyback_gram": 13819.5,
+      "customer_buyback_vori": 161190.65
     },
     "Traditional Gold": {
-      "bdt_per_gram": 13475.0,
-      "bdt_per_vori": 157172.4,
-      "formatted_gram": "13,475/-",
-      "formatted_vori": "1,57,172/-",
-      "customer_buyback_gram": 11184.25,
-      "customer_buyback_vori": 130453.09
+      "bdt_per_gram": 13600.0,
+      "bdt_per_vori": 158630.4,
+      "formatted_gram": "13,600/-",
+      "formatted_vori": "1,58,630/-",
+      "customer_buyback_gram": 11288.0,
+      "customer_buyback_vori": 131663.23
     }
   },
   "raw_dump": [
